@@ -12,13 +12,14 @@ import io.jsonwebtoken.security.Keys;
 @Component
 public class JWTUtil {
     
+    @Value("${jwt.secret:defaultsecret}")
     private String secret;
 
+    @Value("${jwt.expiration}")
     private long expiration;
 
-    public JWTUtil(@Value("${jwt.secret}") String secret, @Value("${jwt.expiration}") long expiratioString) {
-        this.secret = secret;
-        this.expiration = expiratioString;
+    public JWTUtil() {
+        // Using field injection with default value
     }
 
     public String generateToken(String username) {

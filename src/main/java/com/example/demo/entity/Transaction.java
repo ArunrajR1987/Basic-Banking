@@ -1,10 +1,11 @@
-
 package com.example.demo.entity;
 
 import com.example.demo.accounts.Account;
 import org.hibernate.resource.transaction.spi.TransactionStatus;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -14,6 +15,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
+@AllArgsConstructor
 public class Transaction {
     
     @Id

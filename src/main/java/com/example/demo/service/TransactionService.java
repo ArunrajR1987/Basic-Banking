@@ -46,13 +46,6 @@ public class TransactionService {
         "VALUES (?, ?, ?, ?)";
 
     @Autowired
-    public TransactionService(JdbcTemplate jdbcTemplate, TransactionSubject transactionSubject) {
-        this.jdbcTemplate = jdbcTemplate;
-        this.transactionSubject = transactionSubject;
-        this.validationContext = new TransactionValidationContext();
-    }
-    
-    @Autowired
     CustomerRepository customerRepository;
 
     @Autowired
@@ -72,9 +65,9 @@ public class TransactionService {
     );
 
     @Autowired
-    public TransactionService() {
-        this.jdbcTemplate = new JdbcTemplate();
-        this.transactionSubject = null;
+    public TransactionService(JdbcTemplate jdbcTemplate, TransactionSubject transactionSubject) {
+        this.jdbcTemplate = jdbcTemplate;
+        this.transactionSubject = transactionSubject;
         this.validationContext = new TransactionValidationContext();
         this.validationContext.addStrategy(new BalanceValidation());
         this.validationContext.addStrategy(new KYCValidation());

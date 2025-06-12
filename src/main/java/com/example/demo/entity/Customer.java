@@ -24,7 +24,12 @@ public class Customer {
     private String password;
     private double balance;
     private boolean kycVerified;
+    
     @ElementCollection(fetch = FetchType.EAGER)
     private List<String> roles = new ArrayList<>();
-
+    
+    // Explicit getter for kycVerified to ensure it's available
+    public boolean isKycVerified() {
+        return kycVerified;
+    }
 }

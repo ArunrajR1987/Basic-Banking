@@ -11,7 +11,7 @@ import org.springframework.data.repository.query.Param;
 import com.example.demo.entity.Transaction;
 
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
-    @Query("SELECT t FROM Transaction t WHERE t.sender.id = :accountId OR t.receiver.id = :accountId ORDER BY t.createdAt DESC")
+    @Query("SELECT t FROM Transaction t WHERE t.sender.id = :accountId OR t.receiver.id = :accountId ORDER BY t.id DESC")
     List<Transaction> findAccountHistory(@Param("accountId") Long accountId, Pageable pageable);
 
     default List<Transaction> findRecentTransactions(Long accountId, int count) {
