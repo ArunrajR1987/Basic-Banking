@@ -1,45 +1,50 @@
-# Spring Boot Banking Application
+# Pita Banking Application - Backend
 
-A demo banking application built with Spring Boot, Spring Security, and JPA.
+Spring Boot backend for the Pita Banking Application.
+
+## Project Structure
+
+- Spring Boot REST API with JWT authentication
+- JPA/Hibernate for database access
+- Design patterns: Observer, Factory, Strategy, Template
 
 ## Features
 
-- User authentication with JWT
+- User authentication (login/register)
 - Account management
-- Loan processing
-- Transaction handling
-- Role-based access control
+- Transaction processing
+- Fee calculation based on account types
+- Transaction validation and notification
 
 ## Technologies
 
 - Java 17
-- Spring Boot 3.1.0
-- Spring Security
-- Spring Data JPA
-- H2 Database
-- JWT Authentication
-- Lombok
+- Spring Boot
+- Spring Security with JWT
+- JPA/Hibernate
+- Maven
 
 ## Getting Started
 
-### Prerequisites
-
-- JDK 17 or later
-- Maven 3.6+
-
-### Running the Application
-
 1. Clone the repository
-2. Navigate to the project directory
-3. Run `mvn spring-boot:run`
-4. Access the application at `http://localhost:8080`
+2. Navigate to the project root directory
+3. Run `./mvnw spring-boot:run` to start the Spring Boot application
+4. The API will be available at `http://localhost:8080`
 
 ## API Endpoints
 
-- `/api/auth/**` - Authentication endpoints
-- `/admin` - Admin-only endpoints
-- `/bank/**` - User endpoints for banking operations
+### Authentication
+- POST `/api/auth/login` - Login with username and password
+- POST `/api/auth/register` - Register a new user
+
+### Banking
+- GET `/bank/balance/{id}` - Get account balance
+- POST `/bank/transfer` - Transfer funds between accounts
+
+## Frontend Repository
+
+The React frontend for this application is available in a separate repository.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License.
