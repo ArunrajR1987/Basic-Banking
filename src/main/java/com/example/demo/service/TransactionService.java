@@ -5,6 +5,7 @@ import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
+import org.hibernate.resource.transaction.spi.TransactionStatus;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -12,6 +13,8 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Service;
 
+import com.example.demo.accounts.Account;
+import com.example.demo.accounts.AccountRepository;
 import com.example.demo.accounts_fees.BasicAccountFee;
 import com.example.demo.accounts_fees.FeeStrategy;
 import com.example.demo.accounts_fees.PremiumAccountFee;
@@ -54,6 +57,9 @@ public class TransactionService {
 
     @Autowired
     TransactionRepository transactionRepository;
+    
+    @Autowired
+    AccountRepository accountRepository;
 
     List<ValidationStrategy> validationStrategies;
 
@@ -111,12 +117,19 @@ public class TransactionService {
         }, keyHolder);
 
         // 4. Notify observers
-        Transaction transaction = new Transaction(
-            keyHolder.getKey().longValue(),
-            dto.getAmount(),
-            dto.getSenderAccountId(),
-            dto.getReceiverAccountId(),
-            "COMPLETED");
+        Transaction transaction = new Transaction();
+        transaction.setId(keyHolder.getKey().longValue());
+        transaction.setAmount((BigDecimal) dto.getAmount());
+        transaction.setStatus(TransactionStatus.COMMITTED);
+        
+        // Fetch the actual Account objects
+        Account senderAccount = accountRepository.findById(dto.getSenderAccountId())
+            .orElseThrow(() -> new RuntimeException("Sender account not found"));
+        Account receiverAccount = accountRepository.findById(dto.getReceiverAccountId())
+            .orElseThrow(() -> new RuntimeException("Receiver account not found"));
+            
+        transaction.setSender(senderAccount);
+        transaction.setReceiver(receiverAccount);
         
         transactionSubject.notifyObservers(transaction);
 

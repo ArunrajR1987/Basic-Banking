@@ -22,7 +22,7 @@ public class DatabaseAuditObserver implements TransactionObserver {
     public void update(Transaction transaction) {
         jdbcTemplate.update(INSERT_AUDIT_SQL,
             transaction.getId(),
-            transaction.getPreviousStatus(),
+            transaction.getOldStatus(),
             transaction.getStatus(),
             "Processed by " + getObserverType());
     }

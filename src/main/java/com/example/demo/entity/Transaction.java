@@ -1,90 +1,53 @@
+
 package com.example.demo.entity;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.resource.transaction.spi.TransactionStatus;
-
 import com.example.demo.accounts.Account;
-
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import org.hibernate.resource.transaction.spi.TransactionStatus;
+import jakarta.persistence.*;
+import java.math.BigDecimal;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
+@Table(name = "transactions")
 @Getter
 @Setter
-@Table(name = "transactions")
+@NoArgsConstructor
 public class Transaction {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(nullable = false, precision = 15, scale = 2)
+    
+    @Column(name = "amount")
     private BigDecimal amount;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sender_account_id")
+    
+    @ManyToOne
+    @JoinColumn(name = "sender_id")
     private Account sender;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "receiver_account_id")
+    
+    @ManyToOne
+    @JoinColumn(name = "receiver_id")
     private Account receiver;
-
-    @Enumerated(jakarta.persistence.EnumType.STRING)
-    @Column(nullable = false)
+    
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
     private TransactionStatus status;
-
-    @CreationTimestamp
-    private LocalDateTime createdAt;
-
-    public Transaction() {
+    
+    @Transient
+    private TransactionStatus oldStatus;
+    
+    public Transaction(BigDecimal amount, Account sender, Account receiver, TransactionStatus status) {
+        this.amount = amount;
+        this.sender = sender;
+        this.receiver = receiver;
+        this.status = status;
     }
-
-    public Transaction(long longValue, Object amount2, long senderAccountId, long receiverAccountId, String string) {
-        //TODO Auto-generated constructor stub
-    }
-
-    public static TransactionBuilder builder() {
-        return new TransactionBuilder();
-    }
-
-    public static class TransactionBuilder {
-        private final Transaction transaction = new Transaction();
-
-        public TransactionBuilder amount(BigDecimal amount) {
-            transaction.setAmount(amount);
-            return this;
-        }
-
-        public TransactionBuilder sender(Account sender) {
-            transaction.setSender(sender);
-            return this;
-        }
-
-        public TransactionBuilder receiver(Account receiver) {
-            transaction.setReceiver(receiver);
-            return this;
-        }
-
-        public Transaction build() {
-            transaction.setStatus(TransactionStatus.COMMITTING);
-            return transaction;
-        }    }
-
-    public Object getPreviousStatus() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getPreviousStatus'");
+    
+    // Custom setter to track old status
+    public void setStatus(TransactionStatus status) {
+        this.oldStatus = this.status;
+        this.status = status;
     }
 }
