@@ -14,10 +14,11 @@ public class CorsConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration config = new CorsConfiguration();
         
-        // Allow all origins for development - restrict this in production
-        config.addAllowedOrigin("*");
+        // Specific origin for frontend
+        config.addAllowedOrigin("http://localhost:3000");
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
+        config.setAllowCredentials(true);
         
         source.registerCorsConfiguration("/**", config);
         return new CorsFilter(source);
