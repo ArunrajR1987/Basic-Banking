@@ -17,7 +17,7 @@ public class JWTUtil {
     @Value("${jwt.secret:defaultsecretkey}")
     private String secret;
 
-    @Value("${jwt.expiration}")
+    @Value("${jwt.expiration:86400000}")
     private long expiration;
 
     public JWTUtil() {
@@ -44,17 +44,29 @@ public class JWTUtil {
         .signWith(Keys.hmacShaKeyFor(getSigningKey()), SignatureAlgorithm.HS512).compact();
     }
 
-    public String extracUsername(String token) {
+    public String extractUsername(String token) {
         if (!StringUtils.hasText(token)) {
             return null;
         }
         
-        return Jwts.parserBuilder()
-        .setSigningKey(Keys.hmacShaKeyFor(getSigningKey()))
-        .build()
-        .parseClaimsJws(token)
-        .getBody()
-        .getSubject();
+        try {
+            return Jwts.parserBuilder()
+            .setSigningKey(Keys.hmacShaKeyFor(getSigningKey()))
+            .build()
+            .parseClaimsJws(token)
+            .getBody()
+            .getSubject();
+        } catch (Exception e) {
+            // Log the exception but return null to handle gracefully
+            System.err.println("Error parsing JWT token: " + e.getMessage());
+            return null;
+        }
+    }
+    
+    // Keep the old method for backward compatibility
+    @Deprecated
+    public String extracUsername(String token) {
+        return extractUsername(token);
     }
 
     public boolean validateToken(String token, String username) {
@@ -62,7 +74,7 @@ public class JWTUtil {
             return false;
         }
         
-        String extractedUsername = extracUsername(token);
+        String extractedUsername = extractUsername(token);
         return (extractedUsername != null && extractedUsername.equals(username) && !isTokenExpired(token));
     }
 
@@ -71,13 +83,18 @@ public class JWTUtil {
             return true;
         }
         
-        return Jwts.parserBuilder()
-        .setSigningKey(Keys.hmacShaKeyFor(getSigningKey()))
-        .build()
-        .parseClaimsJws(token)
-        .getBody()
-        .getExpiration()
-        .before(new Date());
+        try {
+            return Jwts.parserBuilder()
+            .setSigningKey(Keys.hmacShaKeyFor(getSigningKey()))
+            .build()
+            .parseClaimsJws(token)
+            .getBody()
+            .getExpiration()
+            .before(new Date());
+        } catch (Exception e) {
+            // If we can't parse the token, consider it expired
+            System.err.println("Error checking token expiration: " + e.getMessage());
+            return true;
+        }
     }
-}
 }

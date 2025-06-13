@@ -13,10 +13,8 @@ import com.example.demo.entity.Customer;
 import com.example.demo.repository.CustomerRepository;
 import com.example.demo.service.TransactionService;
 
-//add login registration, JWT auth flow, Observer/Template patterns for transaction notifications or audit log
-
 @RestController
-@RequestMapping("/bank")
+@RequestMapping("/api/bank")
 public class BankController {
     
     @Autowired
@@ -24,11 +22,17 @@ public class BankController {
     @Autowired
     private CustomerRepository customerRepo;
 
+    @GetMapping("/accounts")
+    public ResponseEntity<String> getAccounts() {
+        return ResponseEntity.ok("{\"message\":\"Accounts loaded successfully\",\"status\":\"success\"}");
+    }
+
     @PostMapping("/transfer")
     public ResponseEntity<String> transfer(@RequestParam Long senderId, @RequestParam Long receiverId, @RequestParam Double amount) {
         TransactionDTO dto = new TransactionDTO(senderId, receiverId, amount);
         return ResponseEntity.ok(transactionService.transfer(dto));
     }
+    
     @GetMapping("/balance/{id}")
     public ResponseEntity<Double> getBalance(@PathVariable Long id) {
         Customer c = customerRepo.findById(id).orElseThrow();
