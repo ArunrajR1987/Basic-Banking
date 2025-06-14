@@ -39,32 +39,388 @@ The application follows a layered architecture with the following components:
 
 The application implements a JWT-based authentication system using Spring Security. The security configuration is currently modified to disable auto-configuration (`SecurityAutoConfiguration.class`) to resolve bean creation issues during development.
 
+```java
+@SpringBootApplication(exclude = {SecurityAutoConfiguration.class})
+public class PitaApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(PitaApplication.class, args);
+    }
+}
+```
+
 ### Key Components
 
-1. **SecurityConfig**: Central configuration class for Spring Security
-   - Configures HTTP security, CORS, CSRF, and authorization rules
-   - Defines security filter chain and authentication entry points
-   - Sets up stateless session management (no server-side sessions)
-   - Configures password encoding with BCrypt
+#### 1. SecurityConfig
 
-2. **JwtFilter**: Custom filter extending `OncePerRequestFilter`
-   - Intercepts incoming requests to validate JWT tokens
-   - Extracts user information from tokens
-   - Sets up Spring Security context for authenticated users
-   - Handles authentication failures with proper HTTP responses
-   - Excludes specific paths from authentication requirements
+The `SecurityConfig` class configures Spring Security with JWT authentication:
 
-3. **JWTUtil**: Utility class for JWT operations
-   - Generates tokens upon successful authentication
-   - Validates token integrity and expiration
-   - Extracts username and other claims from tokens
-   - Implements secure signing with HS512 algorithm
-   - Handles token parsing exceptions gracefully
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+    
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
+        return httpSecurity
+        .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+        .csrf(csrf -> csrf.disable())
+        .authorizeHttpRequests(auth -> auth
+            .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+            .requestMatchers("/api/auth/**").permitAll()
+            .requestMatchers("/api/bank/accounts").permitAll()
+            .requestMatchers("/error").permitAll()
+            .anyRequest().permitAll())
+        .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .exceptionHandling(ex -> ex
+            .authenticationEntryPoint((request, response, authException) -> {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"Authentication required\"}");
+            })
+        )
+        .build();
+    }
+    
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setExposedHeaders(Arrays.asList("Authorization"));
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
 
-4. **CustomerDetailsService**: Implements Spring's `UserDetailsService`
-   - Loads user details from the database for authentication
-   - Converts application-specific user model to Spring Security's `UserDetails`
-   - Maps user roles to Spring Security authorities
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
+        return authConfig.getAuthenticationManager();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+}
+```
+
+**Code Explanation:**
+- `@EnableWebSecurity` activates Spring Security's web security support
+- `SecurityFilterChain` defines the security filter chain with various configurations:
+  - CORS configuration allows cross-origin requests from specified origins
+  - CSRF protection is disabled for stateless REST APIs
+  - URL-based authorization rules define which endpoints are public vs. protected
+  - Stateless session management ensures no server-side session state
+  - Custom authentication entry point returns JSON responses for auth failures
+- `PasswordEncoder` bean configures BCrypt for password hashing
+- `AuthenticationManager` bean is used for authenticating user credentials
+
+#### 2. JwtFilter
+
+The `JwtFilter` class intercepts requests to validate JWT tokens:
+
+```java
+@Component
+public class JwtFilter extends OncePerRequestFilter {
+    
+    private static final Logger logger = LoggerFactory.getLogger(JwtFilter.class);
+
+    @Autowired
+    private JWTUtil jwtUtil;
+
+    @Autowired
+    private CustomerDetailsService customDetailsService;
+    
+    private final List<String> excludedPaths = Arrays.asList(
+        "/api/auth/login", 
+        "/api/auth/register",
+        "/error",
+        "/api/bank/accounts"
+    );
+    
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
+    
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getServletPath();
+        
+        // Skip JWT validation for OPTIONS requests and excluded paths
+        if (request.getMethod().equals("OPTIONS")) {
+            return true;
+        }
+        
+        for (String pattern : excludedPaths) {
+            if (pathMatcher.match(pattern, path)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+        
+        // If path should be excluded, just continue the chain
+        if (shouldNotFilter(request)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        
+        // For protected paths
+        String authHeader = request.getHeader("Authorization");
+        
+        // No auth header for protected path - return 401 immediately
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"Authentication required\"}");
+            return;
+        }
+        
+        try {
+            // Process token
+            String token = authHeader.substring(7);
+            String username = jwtUtil.extractUsername(token);
+            
+            if (username == null) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"Invalid token\"}");
+                return;
+            }
+            
+            // Set authentication
+            UserDetails userdetails = customDetailsService.loadUserByUsername(username);
+            if (jwtUtil.validateToken(token, username)) {
+                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                    userdetails, null, userdetails.getAuthorities());
+                SecurityContextHolder.getContext().setAuthentication(authToken);
+                filterChain.doFilter(request, response);
+            } else {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"Token validation failed\"}");
+            }
+        } catch (Exception e) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"" + e.getMessage() + "\"}");
+        }
+    }
+}
+```
+
+**Code Explanation:**
+- `OncePerRequestFilter` ensures the filter is only executed once per request
+- `shouldNotFilter` method determines which paths should bypass JWT validation
+- `doFilterInternal` contains the main token validation logic:
+  - Checks for the presence of an Authorization header with Bearer token
+  - Extracts and validates the JWT token
+  - Loads user details from the database
+  - Sets up the Spring Security context with user authentication
+  - Returns appropriate error responses for authentication failures
+
+#### 3. JWTUtil
+
+The `JWTUtil` class handles JWT token generation and validation:
+
+```java
+@Component
+public class JWTUtil {
+    
+    @Value("${jwt.secret:defaultsecretkey}")
+    private String secret;
+
+    @Value("${jwt.expiration:86400000}")
+    private long expiration;
+
+    private byte[] getSigningKey() {
+        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
+        // Ensure key is at least 256 bits (32 bytes) for HS512
+        if (keyBytes.length < 64) {
+            // Pad the key if it's too short
+            byte[] paddedKey = new byte[64];
+            System.arraycopy(keyBytes, 0, paddedKey, 0, keyBytes.length);
+            keyBytes = paddedKey;
+        }
+        return keyBytes;
+    }
+
+    public String generateToken(String username) {
+        return Jwts.builder()
+        .setSubject(username)
+        .setIssuedAt(new Date())
+        .setExpiration(new Date(System.currentTimeMillis() + expiration))
+        .signWith(Keys.hmacShaKeyFor(getSigningKey()), SignatureAlgorithm.HS512).compact();
+    }
+
+    public String extractUsername(String token) {
+        if (!StringUtils.hasText(token)) {
+            return null;
+        }
+        
+        try {
+            return Jwts.parserBuilder()
+            .setSigningKey(Keys.hmacShaKeyFor(getSigningKey()))
+            .build()
+            .parseClaimsJws(token)
+            .getBody()
+            .getSubject();
+        } catch (Exception e) {
+            System.err.println("Error parsing JWT token: " + e.getMessage());
+            return null;
+        }
+    }
+
+    public boolean validateToken(String token, String username) {
+        if (!StringUtils.hasText(token) || !StringUtils.hasText(username)) {
+            return false;
+        }
+        
+        String extractedUsername = extractUsername(token);
+        return (extractedUsername != null && extractedUsername.equals(username) && !isTokenExpired(token));
+    }
+
+    private boolean isTokenExpired(String token) {
+        if (!StringUtils.hasText(token)) {
+            return true;
+        }
+        
+        try {
+            return Jwts.parserBuilder()
+            .setSigningKey(Keys.hmacShaKeyFor(getSigningKey()))
+            .build()
+            .parseClaimsJws(token)
+            .getBody()
+            .getExpiration()
+            .before(new Date());
+        } catch (Exception e) {
+            System.err.println("Error checking token expiration: " + e.getMessage());
+            return true;
+        }
+    }
+}
+```
+
+**Code Explanation:**
+- `@Value` annotations inject properties from application.properties
+- `getSigningKey()` ensures the signing key meets security requirements
+- `generateToken()` creates a new JWT token with:
+  - Username as the subject
+  - Current time as issuance date
+  - Expiration time based on configured duration
+  - HS512 signature algorithm for security
+- `extractUsername()` parses the token to extract the username
+- `validateToken()` verifies token validity by checking:
+  - Username matches the one in the token
+  - Token has not expired
+- `isTokenExpired()` checks if the token's expiration date has passed
+
+#### 4. CustomerDetailsService
+
+The `CustomerDetailsService` class loads user details for authentication:
+
+```java
+@Service
+public class CustomerDetailsService implements UserDetailsService {
+    
+    @Autowired
+    private CustomerRepository userRepo;
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        Customer user = userRepo.findByUsername(username)
+            .orElseThrow(() -> new UsernameNotFoundException(username + " not found"));
+        
+        List<GrantedAuthority> grantedAuthorities = user.getRoles().stream()
+            .map(SimpleGrantedAuthority::new)
+            .collect(Collectors.toList());
+        
+        return new org.springframework.security.core.userdetails.User(
+            user.getUsername(), 
+            user.getPassword(), 
+            grantedAuthorities
+        );
+    }
+}
+```
+
+**Code Explanation:**
+- Implements Spring Security's `UserDetailsService` interface
+- `loadUserByUsername()` method:
+  - Retrieves user from database by username
+  - Converts application-specific roles to Spring Security authorities
+  - Returns a Spring Security User object with username, password, and authorities
+
+#### 5. AuthController
+
+The `AuthController` handles user authentication and registration:
+
+```java
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+    
+    @Autowired
+    private AuthenticationManager authenticationManager;
+
+    @Autowired
+    private CustomerRepository customerRepository;
+
+    @Autowired
+    private JWTUtil jwtUtil;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody AuthRequest authrequest) {
+        try {
+            Authentication auth = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                    authrequest.getUsername(), 
+                    authrequest.getPassword()
+                )
+            );
+            String token = jwtUtil.generateToken(auth.getName());
+            return ResponseEntity.ok(Map.of("token", token));
+        } catch(Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials");
+        }
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody AuthRequest authrequest) {
+        if(customerRepository.findByUsername(authrequest.getUsername()).isPresent()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Username already exists");
+        }
+
+        Customer newCustomer = new Customer();
+        newCustomer.setUsername(authrequest.getUsername());
+        newCustomer.setPassword(passwordEncoder.encode(authrequest.getPassword()));
+        newCustomer.setRoles(List.of("ROLE_USER"));
+        customerRepository.save(newCustomer);
+        return ResponseEntity.ok("User registered successfully");
+    }
+}
+```
+
+**Code Explanation:**
+- `@RestController` indicates this class handles REST API requests
+- `/login` endpoint:
+  - Authenticates user credentials using Spring's AuthenticationManager
+  - Generates JWT token for authenticated users
+  - Returns token in response or error for invalid credentials
+- `/register` endpoint:
+  - Checks if username already exists
+  - Encodes password using BCrypt
+  - Assigns default user role
+  - Saves new user to database
 
 ### Authentication Flow
 
@@ -99,14 +455,6 @@ The following endpoints are accessible without authentication:
 All other endpoints require a valid JWT token in the Authorization header:
 - `/api/bank/balance/{id}` - For checking account balance
 - `/api/bank/transfer` - For transferring funds between accounts
-
-## Authentication Flow
-
-1. User registers via `/api/auth/register` endpoint
-2. User logs in via `/api/auth/login` endpoint and receives JWT token
-3. JWT token is included in subsequent requests as Bearer token
-4. `JwtFilter` validates token and sets authentication context
-5. Protected endpoints check user roles and permissions
 
 ## Transaction Flow
 
