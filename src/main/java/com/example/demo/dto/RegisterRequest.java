@@ -1,5 +1,7 @@
 package com.example.demo.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonProperty.Access;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 public class RegisterRequest {
@@ -13,7 +15,9 @@ public class RegisterRequest {
     @Schema(description = "Email address", example = "john.doe@example.com")
     private String email;
     
-    @Schema(description = "User password", example = "password123")
+    @Schema(description = "User password (will be encrypted before transmission)", 
+           example = "encrypted_password_string")
+    @JsonProperty(access = Access.WRITE_ONLY)
     private String password;
 
     public String getFirstName() {
@@ -46,5 +50,15 @@ public class RegisterRequest {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+    
+    @Override
+    public String toString() {
+        return "RegisterRequest{" +
+                "firstName='" + firstName + '\'' +
+                ", lastName='" + lastName + '\'' +
+                ", email='" + email + '\'' +
+                ", password='[PROTECTED]'" +
+                '}';
     }
 }

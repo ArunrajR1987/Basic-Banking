@@ -25,6 +25,7 @@ public class Customer {
     private String lastName;
     private String email;
     private String username;
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String password;
     private boolean kycVerified;
     
@@ -32,7 +33,7 @@ public class Customer {
     private List<String> roles = new ArrayList<>();
     
     @OneToMany(mappedBy = "customer")
-    private List<Account> accounts = new ArrayList<>();
+    private List<BankAccount> accounts = new ArrayList<>();
     
     // Explicit getter for kycVerified to ensure it's available
     public boolean isKycVerified() {

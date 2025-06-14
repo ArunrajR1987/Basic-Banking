@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.demo.entity.BankAccount;
 import com.example.demo.entity.Customer;
 import com.example.demo.repository.BankAccountRepository;
 import com.example.demo.repository.CustomerRepository;
@@ -42,7 +43,7 @@ public class BankController {
         
         // Get total balance from all accounts of the customer
         Double totalBalance = bankAccountRepository.findByCustomer(c).stream()
-                .mapToDouble(account -> account.getBalance())
+                .mapToDouble(BankAccount::getBalance)
                 .sum();
                 
         return ResponseEntity.ok(totalBalance);

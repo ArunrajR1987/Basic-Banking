@@ -3,7 +3,7 @@ package com.example.demo.service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.example.demo.entity.Account;
+import com.example.demo.entity.BankAccount;
 import com.example.demo.entity.Customer;
 import com.example.demo.repository.BankAccountRepository;
 
@@ -13,8 +13,8 @@ public class AccountService {
     @Autowired
     private BankAccountRepository accountRepository;
     
-    public Account createAccount(Customer customer, String accountType, double initialBalance) {
-        Account account = new Account();
+    public BankAccount createAccount(Customer customer, String accountType, double initialBalance) {
+        BankAccount account = new BankAccount();
         account.setCustomer(customer);
         account.setAccountType(accountType);
         account.setBalance(initialBalance);

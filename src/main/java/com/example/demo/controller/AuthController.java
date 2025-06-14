@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -15,10 +16,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.demo.security.PasswordSecurityUtil;
+
 import com.example.demo.config.JWTUtil;
 import com.example.demo.dto.AuthRequest;
+import com.example.demo.dto.CustomerDTO;
 import com.example.demo.dto.RegisterRequest;
 import com.example.demo.entity.Customer;
+import com.example.demo.mapper.CustomerMapper;
 import com.example.demo.repository.CustomerRepository;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -54,14 +59,37 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthRequest authrequest) {
         try {
-                Authentication auth = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(authrequest.getUsername(), authrequest.getPassword()));
+                // Handle the password - decrypt it if it was encrypted on the client side
+                String password = authrequest.getPassword();
+                if (passwordSecurityUtil.isEncrypted(password)) {
+                    try {
+                        password = passwordSecurityUtil.decryptPassword(password);
+                    } catch (Exception e) {
+                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid password format");
+                    }
+                }
+                
+                Authentication auth = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(authrequest.getUsername(), password)
+                );
                 String token = jwtUtil.generateToken(auth.getName());
-                return ResponseEntity.ok(Map.of("token", token));
+                
+                // Get customer details but exclude password
+                Customer customer = customerRepository.findByUsername(auth.getName()).orElseThrow();
+                CustomerDTO customerDTO = CustomerMapper.toDTO(customer);
+                
+                Map<String, Object> response = new HashMap<>();
+                response.put("token", token);
+                response.put("user", customerDTO);
+                
+                return ResponseEntity.ok(response);
         } catch(Exception e) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials");
         }
-
     }
+
+    @Autowired
+    private PasswordSecurityUtil passwordSecurityUtil;
 
     @Operation(summary = "Register user", description = "Creates a new user account")
     @ApiResponses(value = {
@@ -80,12 +108,32 @@ public class AuthController {
         newCustomer.setLastName(registerRequest.getLastName());
         newCustomer.setEmail(registerRequest.getEmail());
         newCustomer.generateUsername(); // Generate username from first and last name
-        newCustomer.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
+        
+        // Handle the password - decrypt it if it was encrypted on the client side
+        String password = registerRequest.getPassword();
+        if (passwordSecurityUtil.isEncrypted(password)) {
+            try {
+                password = passwordSecurityUtil.decryptPassword(password);
+            } catch (Exception e) {
+                return ResponseEntity.badRequest().body("Invalid password format");
+            }
+        }
+        
+        // Encode the password before storing
+        newCustomer.setPassword(passwordEncoder.encode(password));
         newCustomer.setRoles(List.of("ROLE_USER"));
         customerRepository.save(newCustomer);
         
         // Generate token for the newly registered user
         String token = jwtUtil.generateToken(newCustomer.getUsername());
-        return ResponseEntity.ok(Map.of("token", token, "username", newCustomer.getUsername()));
+        
+        // Convert to DTO to avoid exposing password
+        CustomerDTO customerDTO = CustomerMapper.toDTO(newCustomer);
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("token", token);
+        response.put("user", customerDTO);
+        
+        return ResponseEntity.ok(response);
     }
 }
