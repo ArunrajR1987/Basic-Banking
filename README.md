@@ -33,6 +33,73 @@ The application follows a layered architecture with the following components:
 - **Observer Pattern**: `TransactionObserver` for notification on transactions
 - **Template Method**: `LoanProcessingTemplate` defines skeleton for loan processing
 
+## Spring Security Implementation
+
+### Overview
+
+The application implements a JWT-based authentication system using Spring Security. The security configuration is currently modified to disable auto-configuration (`SecurityAutoConfiguration.class`) to resolve bean creation issues during development.
+
+### Key Components
+
+1. **SecurityConfig**: Central configuration class for Spring Security
+   - Configures HTTP security, CORS, CSRF, and authorization rules
+   - Defines security filter chain and authentication entry points
+   - Sets up stateless session management (no server-side sessions)
+   - Configures password encoding with BCrypt
+
+2. **JwtFilter**: Custom filter extending `OncePerRequestFilter`
+   - Intercepts incoming requests to validate JWT tokens
+   - Extracts user information from tokens
+   - Sets up Spring Security context for authenticated users
+   - Handles authentication failures with proper HTTP responses
+   - Excludes specific paths from authentication requirements
+
+3. **JWTUtil**: Utility class for JWT operations
+   - Generates tokens upon successful authentication
+   - Validates token integrity and expiration
+   - Extracts username and other claims from tokens
+   - Implements secure signing with HS512 algorithm
+   - Handles token parsing exceptions gracefully
+
+4. **CustomerDetailsService**: Implements Spring's `UserDetailsService`
+   - Loads user details from the database for authentication
+   - Converts application-specific user model to Spring Security's `UserDetails`
+   - Maps user roles to Spring Security authorities
+
+### Authentication Flow
+
+1. Client submits credentials to `/api/auth/login`
+2. `AuthController` validates credentials using Spring's `AuthenticationManager`
+3. Upon successful authentication, `JWTUtil` generates a signed JWT token
+4. Token is returned to client for storage (typically in local storage or cookies)
+5. Client includes token in Authorization header for subsequent requests
+6. `JwtFilter` validates token and establishes security context if valid
+7. Protected resources check authorities before granting access
+
+### Security Measures
+
+- **Password Encryption**: BCrypt hashing for secure password storage
+- **Token Signing**: HS512 algorithm with secure key management
+- **CSRF Protection**: Disabled for stateless API (relies on JWT security)
+- **CORS Configuration**: Configured to allow specific origins and methods
+- **Stateless Architecture**: No server-side session state, improving scalability
+- **Path-Based Security**: Different security rules for different API paths
+- **Custom Error Handling**: JSON responses for authentication failures
+
+### Public Endpoints
+
+The following endpoints are accessible without authentication:
+- `/api/auth/login` - For user login
+- `/api/auth/register` - For user registration
+- `/api/bank/accounts` - Public endpoint for viewing accounts
+- All OPTIONS requests (for CORS preflight)
+
+### Protected Endpoints
+
+All other endpoints require a valid JWT token in the Authorization header:
+- `/api/bank/balance/{id}` - For checking account balance
+- `/api/bank/transfer` - For transferring funds between accounts
+
 ## Authentication Flow
 
 1. User registers via `/api/auth/register` endpoint
@@ -144,14 +211,3 @@ logging.level.org.springframework.security=INFO
   - GET `/api/bank/accounts` - View accounts (public endpoint)
   - GET `/api/bank/balance/{id}` - Check account balance
   - POST `/api/bank/transfer` - Transfer funds between accounts
-
-## Security Configuration
-
-The application uses Spring Security with JWT for authentication. Security is currently configured to:
-
-- Allow public access to authentication endpoints
-- Allow public access to `/api/bank/accounts` endpoint
-- Require authentication for other banking operations
-- Use stateless session management
-
-Note: Security auto-configuration is currently disabled (`SecurityAutoConfiguration.class`) to resolve bean creation issues.
