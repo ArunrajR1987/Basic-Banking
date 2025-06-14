@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.demo.config.JWTUtil;
 import com.example.demo.dto.AuthRequest;
+import com.example.demo.dto.RegisterRequest;
 import com.example.demo.entity.Customer;
 import com.example.demo.repository.CustomerRepository;
 
@@ -30,6 +31,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RestController
 @RequestMapping("/api/auth")
 @Tag(name = "Authentication", description = "Authentication API endpoints")
+public class AuthController {
     
     @Autowired
     private AuthenticationManager authenticationManager;
@@ -64,19 +66,26 @@ import io.swagger.v3.oas.annotations.tags.Tag;
     @Operation(summary = "Register user", description = "Creates a new user account")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "User registered successfully"),
-        @ApiResponse(responseCode = "409", description = "Username already exists")
+        @ApiResponse(responseCode = "409", description = "Email already exists")
     })
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody AuthRequest authrequest) {
-        if(customerRepository.findByUsername(authrequest.getUsername()).isPresent()) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body("Username already exists da punda");
+    public ResponseEntity<?> register(@RequestBody RegisterRequest registerRequest) {
+        // Check if email is already in use
+        if(customerRepository.findByEmail(registerRequest.getEmail()).isPresent()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Email already exists");
         }
 
         Customer newCustomer = new Customer();
-        newCustomer.setUsername(authrequest.getUsername());
-        newCustomer.setPassword(passwordEncoder.encode(authrequest.getPassword()));
+        newCustomer.setFirstName(registerRequest.getFirstName());
+        newCustomer.setLastName(registerRequest.getLastName());
+        newCustomer.setEmail(registerRequest.getEmail());
+        newCustomer.generateUsername(); // Generate username from first and last name
+        newCustomer.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
         newCustomer.setRoles(List.of("ROLE_USER"));
         customerRepository.save(newCustomer);
-        return ResponseEntity.ok("User registered successfully");
+        
+        // Generate token for the newly registered user
+        String token = jwtUtil.generateToken(newCustomer.getUsername());
+        return ResponseEntity.ok(Map.of("token", token, "username", newCustomer.getUsername()));
     }
 }

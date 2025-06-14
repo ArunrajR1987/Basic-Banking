@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.demo.entity.Customer;
+import com.example.demo.repository.BankAccountRepository;
 import com.example.demo.repository.CustomerRepository;
 import com.example.demo.service.TransactionService;
 
@@ -21,6 +22,8 @@ public class BankController {
     private TransactionService transactionService;
     @Autowired
     private CustomerRepository customerRepo;
+    @Autowired
+    private BankAccountRepository bankAccountRepository;
 
     @GetMapping("/accounts")
     public ResponseEntity<String> getAccounts() {
@@ -36,6 +39,12 @@ public class BankController {
     @GetMapping("/balance/{id}")
     public ResponseEntity<Double> getBalance(@PathVariable Long id) {
         Customer c = customerRepo.findById(id).orElseThrow();
-        return ResponseEntity.ok(c.getBalance());
+        
+        // Get total balance from all accounts of the customer
+        Double totalBalance = bankAccountRepository.findByCustomer(c).stream()
+                .mapToDouble(account -> account.getBalance())
+                .sum();
+                
+        return ResponseEntity.ok(totalBalance);
     }
 }
