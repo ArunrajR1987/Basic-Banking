@@ -1,6 +1,8 @@
 package com.example.demo.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -12,6 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Controller for security-related endpoints.
@@ -33,9 +36,17 @@ public class SecurityController {
     @Operation(summary = "Get public key", 
               description = "Returns the public key for password encryption on the client side")
     @GetMapping("/public-key")
-    public Map<String, String> getPublicKey() {
+    public ResponseEntity<Map<String, String>> getPublicKey() {
         Map<String, String> response = new HashMap<>();
         response.put("publicKey", passwordSecurityUtil.getPublicKeyBase64());
-        return response;
+        
+        // Cache the public key for 1 hour to reduce unnecessary requests
+        CacheControl cacheControl = CacheControl.maxAge(1, TimeUnit.HOURS)
+                                               .noTransform()
+                                               .mustRevalidate();
+        
+        return ResponseEntity.ok()
+                .cacheControl(cacheControl)
+                .body(response);
     }
 }

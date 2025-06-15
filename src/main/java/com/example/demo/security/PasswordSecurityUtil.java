@@ -2,11 +2,11 @@ package com.example.demo.security;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.util.Base64;
 import javax.crypto.Cipher;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -17,16 +17,22 @@ import org.springframework.stereotype.Component;
 @Component
 public class PasswordSecurityUtil {
     
+    private static final Logger logger = LoggerFactory.getLogger(PasswordSecurityUtil.class);
+    private static final String RSA_ALGORITHM = "RSA";
+    private static final int KEY_SIZE = 2048;
+    
     private final KeyPair keyPair;
     
     public PasswordSecurityUtil() {
         // Generate a key pair for RSA encryption/decryption
         // In a production environment, this should be properly managed with a key store
         try {
-            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-            keyPairGenerator.initialize(2048);
+            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(RSA_ALGORITHM);
+            keyPairGenerator.initialize(KEY_SIZE);
             this.keyPair = keyPairGenerator.generateKeyPair();
+            logger.info("RSA key pair generated successfully with {} bit length", KEY_SIZE);
         } catch (Exception e) {
+            logger.error("Failed to initialize encryption keys", e);
             throw new RuntimeException("Failed to initialize encryption keys", e);
         }
     }
@@ -46,17 +52,19 @@ public class PasswordSecurityUtil {
      * 
      * @param encryptedPasswordBase64 The Base64 encoded encrypted password
      * @return The decrypted password as a string
+     * @throws RuntimeException if decryption fails
      */
     public String decryptPassword(String encryptedPasswordBase64) {
         try {
             byte[] encryptedBytes = Base64.getDecoder().decode(encryptedPasswordBase64);
             
-            Cipher cipher = Cipher.getInstance("RSA");
+            Cipher cipher = Cipher.getInstance(RSA_ALGORITHM);
             cipher.init(Cipher.DECRYPT_MODE, keyPair.getPrivate());
             byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
             
             return new String(decryptedBytes);
         } catch (Exception e) {
+            logger.error("Failed to decrypt password", e);
             throw new RuntimeException("Failed to decrypt password", e);
         }
     }
